@@ -253,6 +253,23 @@ public class BackgroundJobServer implements BackgroundJobServerMBean {
         return jobSteward;
     }
 
+    /**
+     * Immediately checks the {@link StorageProvider} for enqueued jobs and starts processing them, instead of waiting
+     * for the next {@code pollInterval} tick. This is the hook that makes instant (push-based) job processing possible
+     * on top of JobRunr's polling model: whoever knows that a job was just enqueued can call this and skip the wait.
+     * <p>
+     * Does nothing when this server is not (yet) ready to process jobs. Redundant or concurrent calls are safe and
+     * cheap - see {@link JobSteward#onboardNewWorkNow()}.
+     * <p>
+     * Note that this performs a database round-trip on the calling thread. Prefer wiring
+     * {@link org.jobrunr.server.instant.InstantJobProcessingFilter}, which calls this asynchronously and coalesces
+     * bursts, over calling it directly from a request thread.
+     */
+    public void onboardNewWorkNow() {
+        if (isNotReadyToProcessJobs()) return;
+        jobSteward.onboardNewWorkNow();
+    }
+
     public StorageProvider getStorageProvider() {
         return storageProvider;
     }

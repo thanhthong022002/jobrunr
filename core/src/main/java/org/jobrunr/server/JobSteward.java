@@ -59,6 +59,21 @@ public class JobSteward extends JobHandler implements Runnable {
 
     public void notifyThreadIdle() {
         this.occupiedWorkers.decrementAndGet();
+        onboardNewWorkNow();
+    }
+
+    /**
+     * Immediately looks for enqueued jobs instead of waiting for the next pollInterval tick.
+     * <p>
+     * Safe to call from any thread and as often as you like: the underlying {@link OnboardNewWorkTask} is guarded by a
+     * {@code tryLock} and the storage query uses {@code FOR UPDATE SKIP LOCKED}, so concurrent or redundant invocations
+     * are no-ops rather than duplicate work.
+     * <p>
+     * <b><em>Please note:</em></b> this method runs the onboarding on the <em>calling</em> thread - it performs a
+     * database round-trip. Callers on a latency-sensitive path (e.g. a request thread that just enqueued a job) should
+     * hand off to another thread; {@link org.jobrunr.server.instant.InstantJobProcessingFilter} does exactly that.
+     */
+    public void onboardNewWorkNow() {
         onboardNewWorkTask.runTaskThreadSafe();
     }
 }
