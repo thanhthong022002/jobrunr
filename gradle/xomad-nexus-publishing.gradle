@@ -1,0 +1,104 @@
+// ---------------------------------------------------------------------------------------------
+// XOMAD fork only — publish to the company Nexus.
+//
+// Upstream publishes to Sonatype OSSRH / Maven Central via the `io.github.gradle-nexus.publish-plugin`
+// block in the root build.gradle. We can't use that, but we don't remove it either: leaving it
+// untouched keeps future upstream merges clean, and this file is additive — it registers one extra
+// publishing repository ("xomadNexus") on every subproject that already applies `maven-publish`.
+//
+// Signing is NOT needed here. Upstream gates it on the SIGNING_KEY env var (see core/build.gradle),
+// so with that var unset nothing is signed and Nexus is happy — Central would not be.
+//
+// Usage
+//   ./gradlew -PxomadVersion=8.7.1-xomad.1 publishXomadArtifacts
+//
+// Credentials (never commit them) — Gradle properties in ~/.gradle/gradle.properties:
+//   xomadNexusUsername=thong.nguyen@xomad.com
+//   xomadNexusPassword=<nexus password>
+// or environment variables NEXUS_USERNAME / NEXUS_PASSWORD.
+//
+// Verify without touching the shared repository by publishing to a throwaway local repo:
+//   ./gradlew -PxomadVersion=8.7.1-xomad.1 -PxomadNexusBaseUrl=file:///tmp/fake-nexus publishXomadArtifacts
+// ---------------------------------------------------------------------------------------------
+
+def xomadVersion = findProperty('xomadVersion') ?: System.getenv('XOMAD_VERSION')
+def nexusBaseUrl = findProperty('xomadNexusBaseUrl') ?: System.getenv('XOMAD_NEXUS_BASE_URL')
+        ?: 'https://nexus.internal.xomad.com/repository'
+def nexusUsername = findProperty('xomadNexusUsername') ?: System.getenv('NEXUS_USERNAME')
+def nexusPassword = findProperty('xomadNexusPassword') ?: System.getenv('NEXUS_PASSWORD')
+
+/**
+ * The modules XOMAD actually consumes. The `ai` module is on Spring Boot 4 / Java 25 and depends on
+ * `jobrunr-spring-boot-4-starter`, which pulls `:core` transitively. The quarkus / micronaut /
+ * kotlin modules — and the Spring Boot 3 starter — are irrelevant to us and only slow the build
+ * down, so `publishXomadArtifacts` deliberately publishes just these two rather than everything.
+ *
+ * When the `api` module is upgraded off Spring Boot 2 it will consume the same SB4 (or SB3) starter;
+ * add it here then. There is deliberately no Spring Boot 2 starter: upstream deleted that module
+ * after 7.5.3, so it does not exist on this baseline.
+ */
+ext.xomadPublishedProjects = [':core', ':framework-support:jobrunr-spring-boot-4-starter']
+
+// Override the version upstream's root build.gradle derives from CI_COMMIT_TAG. This file is
+// applied at the END of that build script, so this assignment wins.
+if (xomadVersion) {
+    subprojects {
+        version = xomadVersion
+    }
+}
+
+subprojects {
+    // Fires as each subproject applies maven-publish, i.e. after the version above is in place.
+    plugins.withId('maven-publish') {
+        publishing {
+            repositories {
+                maven {
+                    name = 'xomadNexus'
+                    // Nexus keeps releases and snapshots in separate repositories and rejects a
+                    // mismatch, so pick by the version suffix rather than asking the caller.
+                    url = version.toString().endsWith('SNAPSHOT')
+                            ? "${nexusBaseUrl}/maven-snapshots/"
+                            : "${nexusBaseUrl}/maven-releases/"
+                    // A file:// URL (used for dry runs) takes no credentials.
+                    if (!url.toString().startsWith('file:')) {
+                        credentials {
+                            username = nexusUsername
+                            password = nexusPassword
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Publish exactly what the backend needs. */
+tasks.register('publishXomadArtifacts') {
+    group = 'publishing'
+    description = 'Publish jobrunr + jobrunr-spring-boot-4-starter to the XOMAD Nexus'
+    dependsOn xomadPublishedProjects.collect { "${it}:publishMavenJavaPublicationToXomadNexusRepository" }
+}
+
+// Guardrails, checked once the task graph is known rather than at configuration time — so an
+// ordinary `./gradlew build` never trips over them.
+gradle.taskGraph.whenReady { graph ->
+    def publishing = graph.allTasks.findAll { it.name.contains('PublicationToXomadNexusRepository') }
+    if (publishing.isEmpty()) {
+        return
+    }
+    // Without this, upstream's fallback version applies and we would push a meaningless
+    // "1.0.0-SNAPSHOT" of a XOMAD fork into a shared repository.
+    if (!xomadVersion) {
+        throw new GradleException(
+                'Refusing to publish: no version given. Pass -PxomadVersion=<version> ' +
+                '(e.g. 8.7.1-xomad.1) or set XOMAD_VERSION.')
+    }
+    def remote = !nexusBaseUrl.toString().startsWith('file:')
+    if (remote && (!nexusUsername || !nexusPassword)) {
+        throw new GradleException(
+                'Refusing to publish: Nexus credentials missing. Set xomadNexusUsername / ' +
+                'xomadNexusPassword in ~/.gradle/gradle.properties, or NEXUS_USERNAME / ' +
+                'NEXUS_PASSWORD in the environment.')
+    }
+    println "[xomad] publishing version ${xomadVersion} to ${nexusBaseUrl}"
+}
