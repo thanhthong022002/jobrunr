@@ -1,8 +1,23 @@
 # XOMAD fork of JobRunr
 
-This fork exists to carry one XOMAD-only change — **instant (push-based) job processing**, see
-[`INSTANT_JOB_PROCESSING.md`](INSTANT_JOB_PROCESSING.md) — and to publish it to the **company Nexus**
-so `xomad-internal-tools` can depend on it like any other internal artifact.
+A **long-lived fork**. JobRunr underpins the internal **flow** framework in the backend's `ai`
+module, and building that out means changing JobRunr itself — so this fork is where XOMAD-only
+changes live, and it exists to get them into the **company Nexus** where internal work can build
+against them. Expect it to accumulate changes over time; the publishing setup below is the permanent
+part, not a one-off for any single feature.
+
+Without this, a JobRunr change is unusable: upstream's build only knows how to publish to Sonatype /
+Maven Central, so there is no way to hand a modified JobRunr to `xomad-internal-tools`.
+
+## XOMAD changes carried here
+
+| Change | Notes |
+|---|---|
+| Instant (push-based) job processing | [`INSTANT_JOB_PROCESSING.md`](INSTANT_JOB_PROCESSING.md) — removes the 0–`pollInterval` wait before an enqueued job is picked up |
+| Nexus publishing | this document + [`gradle/xomad-nexus-publishing.gradle`](gradle/xomad-nexus-publishing.gradle) |
+
+Add a row when you add a change. If a change touches a module that is not yet published, add it to
+the published-module list too — see [Publishing](#publishing).
 
 Tracked as **IT-64**.
 
@@ -73,10 +88,14 @@ setup.
 ./gradlew -PxomadVersion=8.7.1-xomad.1 publishXomadArtifacts
 ```
 
-`publishXomadArtifacts` publishes exactly the two modules XOMAD consumes — `:core`
+`publishXomadArtifacts` publishes the modules XOMAD consumes — currently `:core`
 (`org.jobrunr:jobrunr`) and `:framework-support:jobrunr-spring-boot-4-starter`. The quarkus /
-micronaut / kotlin modules and the Spring Boot 3 starter are irrelevant to us and only cost build
-time.
+micronaut / kotlin modules and the Spring Boot 3 starter are left out because nothing here consumes
+them and they only cost build time.
+
+**Adding a module** is one line — `ext.xomadPublishedProjects` in
+[`gradle/xomad-nexus-publishing.gradle`](gradle/xomad-nexus-publishing.gradle). Any subproject that
+applies `maven-publish` already gets the `xomadNexus` repository, so nothing else needs touching.
 
 **Dry-run against a throwaway local repository first** — the real Nexus is shared and a published
 release version cannot be replaced:
@@ -85,12 +104,24 @@ release version cannot be replaced:
 ./gradlew -PxomadVersion=8.7.1-xomad.1 -PxomadNexusBaseUrl=file:///tmp/fake-nexus publishXomadArtifacts
 ```
 
-### Versioning
+### Versioning — snapshots while developing, releases to pin
 
-Use `<nearest upstream tag>-xomad.N` — e.g. `8.7.1-xomad.1`. The group stays `org.jobrunr` and the
-artifact ids are unchanged, so consuming the fork is a **one-line version bump** with no import or
-code changes. Bump `N` for every publish: `maven-releases` rejects overwriting an existing release
-version.
+The group stays `org.jobrunr` and the artifact ids are unchanged, so consuming the fork is always a
+one-line version bump with no import or code changes.
+
+Since this fork keeps evolving, use the two channels for what they are:
+
+- **Iterating on a JobRunr change** → a snapshot, e.g. `-PxomadVersion=8.7.1-xomad-SNAPSHOT`. It
+  routes to `maven-snapshots` automatically (chosen from the version suffix), and snapshots **can**
+  be republished, so you can push repeatedly under one version while the consumer keeps a fixed
+  `<jobrunr.version>`. `ai/pom.xml` already enables snapshots on that repository. Consumers need
+  `mvn -U` to pick up a re-published snapshot.
+- **Anything anyone else builds against** → a release, `<nearest upstream tag>-xomad.N`, e.g.
+  `8.7.1-xomad.1`. Bump `N` every time: `maven-releases` **rejects** overwriting an existing version,
+  which is the point — a pinned release never changes underneath a build.
+
+Don't leave a shared branch or a deploy pinned to a snapshot; cut an `-xomad.N` release once the
+change settles.
 
 Publishing refuses to run without `-PxomadVersion`, on purpose — upstream's fallback version is
 `1.0.0-SNAPSHOT`, which would be a meaningless thing to push into a shared repository.
