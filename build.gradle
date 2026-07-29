@@ -202,3 +202,7 @@ configure(subprojects.findAll { !['platform'].contains(it.name) }) {
         }
     }
 }
+// XOMAD fork: adds a "xomadNexus" publishing repository so this fork's artifacts can go to the
+// company Nexus alongside the backend's own modules. Additive and self-contained — upstream's
+// Sonatype/Central path above is untouched, so merging upstream stays clean. See XOMAD_FORK.md.
+apply from: "$rootDir/gradle/xomad-nexus-publishing.gradle"
