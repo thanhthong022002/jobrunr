@@ -80,22 +80,50 @@ JobScheduler scheduler = new JobScheduler(storageProvider, singletonList(instant
 instantProcessing.close();
 ```
 
+> ⚠️ **Do not copy that two-argument `new JobScheduler(...)` into a Spring Boot app.** It is correct
+> for a hand-rolled setup, where you were choosing the `JobDetailsGenerator` yourself anyway — but
+> `JobScheduler` has a `(storageProvider, jobDetailsGenerator, filters)` constructor, and the
+> two-arg form falls back to the default generator. The Spring Boot starter configures that
+> generator from `jobrunr.job-scheduler.job-details-generator` (default
+> `CachingJobDetailsGenerator`), so overriding its bean with the two-arg form **silently drops the
+> configured generator** and changes how job details are derived — with no error and no log line.
+> Use the Spring Boot form below, which keeps it.
+
 ### Spring Boot
 
 The starter declares `backgroundJobServer` and `jobScheduler` as `@ConditionalOnMissingBean`, so declaring
 your own wins:
 
 ```java
-@Bean
+@Bean(destroyMethod = "close")   // releases the listener connection + thread on shutdown
 InstantJobProcessing instantJobProcessing(BackgroundJobServer backgroundJobServer) {
     return InstantJobProcessing.enableOn(backgroundJobServer);
 }
 
 @Bean
-JobScheduler jobScheduler(StorageProvider storageProvider, InstantJobProcessing instantJobProcessing) {
-    return new JobScheduler(storageProvider, singletonList(instantJobProcessing.jobFilter()));
+JobScheduler jobScheduler(StorageProvider storageProvider,
+                          JobRunrProperties properties,
+                          InstantJobProcessing instantJobProcessing) {
+    // Mirror JobRunrAutoConfiguration#jobScheduler exactly apart from the filter list — in
+    // particular keep the configured JobDetailsGenerator. Using the two-arg
+    // new JobScheduler(storageProvider, filters) here would silently drop it.
+    JobDetailsGenerator jobDetailsGenerator =
+        ReflectionUtils.newInstance(properties.getJobScheduler().getJobDetailsGenerator());
+    return new JobScheduler(
+        storageProvider, jobDetailsGenerator, singletonList(instantJobProcessing.jobFilter()));
 }
 ```
+
+Two things that are easy to get wrong here:
+
+- **Gate this on the background job server existing.** The starter declares `backgroundJobServer`
+  `@ConditionalOnProperty(prefix = "jobrunr.background-job-server", name = "enabled", havingValue = "true")`,
+  so in any profile that leaves it off (typically tests) there is no server to inject and every
+  context load fails. Put the same condition on your configuration class.
+  `@ConditionalOnBean(BackgroundJobServer.class)` does **not** work for this: user `@Configuration`
+  is parsed before autoconfigurations register their bean definitions, so it always evaluates false.
+- **`JobRequestScheduler` takes filters too** and is a separate `@ConditionalOnMissingBean`. If you
+  use `JobRequest`s, override it the same way; otherwise it needs no attention.
 
 ## Wiring — cluster (Postgres `LISTEN`/`NOTIFY`)
 

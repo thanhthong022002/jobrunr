@@ -126,6 +126,55 @@ change settles.
 Publishing refuses to run without `-PxomadVersion`, on purpose — upstream's fallback version is
 `1.0.0-SNAPSHOT`, which would be a meaningless thing to push into a shared repository.
 
+### Tag every release
+
+**A release is not done until it is tagged.** The Maven coordinates alone do not say *which commit*
+was published: this branch keeps moving, and `maven-releases` stores a jar, not a git ref. Without a
+tag, "what is actually in `8.7.1-xomad.1`?" is only answerable by guessing from timestamps.
+
+So, immediately after a successful `publishXomadArtifacts` to the real Nexus:
+
+```bash
+git tag -a v8.7.1-xomad.1 -m "XOMAD JobRunr 8.7.1-xomad.1" <commit-that-was-published>
+git push fork v8.7.1-xomad.1
+```
+
+Rules:
+
+- **Tag name is `v` + the exact `-PxomadVersion` value** — `v8.7.1-xomad.1`. Matches upstream's own
+  `v8.7.1` style and never collides with it.
+- **Annotated (`-a`), not lightweight**, so the tag carries who cut it and when.
+- **Tag the commit that was built**, which is not necessarily `HEAD` at the time you remember to tag —
+  if you have already committed documentation on top, pass the published commit explicitly.
+- **Never move or delete a published tag.** `maven-releases` refuses to overwrite a version, and the
+  tag has to stay just as immutable or it stops being evidence. Made a mistake? Cut `-xomad.N+1`.
+- **Snapshots are not tagged.** They are re-publishable by design, so a tag would be a lie.
+
+Then add a row to [Releases](#releases) below.
+
+## Releases
+
+One row per published `-xomad.N` release, newest first. This is the changelog: it answers "what
+changed between two versions, and what commit is each one?" — which the Nexus artifacts cannot.
+
+Record the **XOMAD-visible** change, not upstream's churn. If a release exists only to move the
+upstream baseline, say that.
+
+| Version | Tag | Commit | Upstream baseline | Published | Changes |
+|---|---|---|---|---|---|
+| `8.7.1-xomad.1` | `v8.7.1-xomad.1` | `6cc6cccf` | `v8.7.1` + 6 | 2026-07-30 | **First XOMAD release of the 8.x fork.** Carries (1) instant / push-based job processing — `org.jobrunr.server.instant.*`, `JobSteward.onboardNewWorkNow()`, `BackgroundJobServer.onboardNewWorkNow()`, and the Postgres `LISTEN`/`NOTIFY` bridge, see [`INSTANT_JOB_PROCESSING.md`](INSTANT_JOB_PROCESSING.md); (2) the XOMAD Nexus publishing setup itself (`gradle/xomad-nexus-publishing.gradle`). Consumed by `xomad-internal-tools` `ai` (IT-67), wired up in IT-68. Verified in that consumer: 62 ms enqueue → execution against a 45 s poll interval. |
+
+### Adding a row
+
+Do it in the same PR as the change, or immediately after publishing — a release that is only in
+Nexus and not in this table is invisible to the next person. Include:
+
+- the **consumer-visible effect**, not just the class names;
+- the **ticket** (`IT-nn`) if there is one;
+- anything a consumer must do beyond the version bump (new config keys, required beans, DDL). For
+  `8.7.1-xomad.1` that is: instant processing is **opt-in**, so bumping the version alone changes
+  nothing until the consumer registers the beans.
+
 ## Consuming it from the `ai` module
 
 `ai/pom.xml` already declares both Nexus repositories, so this is the whole change:
