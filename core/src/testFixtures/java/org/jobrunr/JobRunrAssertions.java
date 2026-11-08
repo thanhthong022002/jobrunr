@@ -26,6 +26,7 @@ import org.jobrunr.server.BackgroundJobServer;
 import org.jobrunr.server.BackgroundJobServerAssert;
 import org.jobrunr.server.BackgroundJobServerConfiguration;
 import org.jobrunr.server.BackgroundJobServerConfigurationAssert;
+import org.jobrunr.server.BackgroundJobServerConfigurationReader;
 import org.jobrunr.server.carbonaware.CarbonAwareJobProcessingConfiguration;
 import org.jobrunr.server.carbonaware.CarbonAwareJobProcessingConfigurationReader;
 import org.jobrunr.server.carbonaware.CarbonIntensityForecast;
@@ -48,7 +49,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class JobRunrAssertions extends Assertions {
 
     public static Condition<Throwable> failedJob(Job job) {
-        return new Condition<>(x -> x instanceof ConcurrentJobModificationException && ((ConcurrentJobModificationException) x).getConcurrentUpdatedJobs().contains(job), "Should contain job");
+        return new Condition<>(x -> x instanceof ConcurrentJobModificationException cjme && cjme.getConcurrentUpdatedJobs().contains(job), "Should contain job");
     }
 
     public static <T extends Job> IdListAssert<Job, JobAssert> assertThatJobs(Page<T> jobPage) {
@@ -77,6 +78,10 @@ public class JobRunrAssertions extends Assertions {
 
     public static JobRunrMetadataAssert assertThat(JobRunrMetadata metadata) {
         return JobRunrMetadataAssert.assertThat(metadata);
+    }
+
+    public static BackgroundJobServerConfigurationAssert assertThat(BackgroundJobServerConfigurationReader backgroundJobServerConfiguration) {
+        return BackgroundJobServerConfigurationAssert.assertThat(backgroundJobServerConfiguration);
     }
 
     public static BackgroundJobServerConfigurationAssert assertThat(BackgroundJobServerConfiguration backgroundJobServerConfiguration) {

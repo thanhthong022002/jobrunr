@@ -10,7 +10,7 @@
 // so with that var unset nothing is signed and Nexus is happy — Central would not be.
 //
 // Usage
-//   ./gradlew -PxomadVersion=8.7.1-xomad.1 publishXomadArtifacts
+//   ./gradlew -PxomadVersion=9.0.3-xomad.1 publishXomadArtifacts
 //
 // Credentials (never commit them) — Gradle properties in ~/.gradle/gradle.properties:
 //   xomadNexusUsername=thong.nguyen@xomad.com
@@ -18,7 +18,7 @@
 // or environment variables NEXUS_USERNAME / NEXUS_PASSWORD.
 //
 // Verify without touching the shared repository by publishing to a throwaway local repo:
-//   ./gradlew -PxomadVersion=8.7.1-xomad.1 -PxomadNexusBaseUrl=file:///tmp/fake-nexus publishXomadArtifacts
+//   ./gradlew -PxomadVersion=9.0.3-xomad.1 -PxomadNexusBaseUrl=file:///tmp/fake-nexus publishXomadArtifacts
 // ---------------------------------------------------------------------------------------------
 
 def xomadVersion = findProperty('xomadVersion') ?: System.getenv('XOMAD_VERSION')
@@ -91,7 +91,7 @@ gradle.taskGraph.whenReady { graph ->
     if (!xomadVersion) {
         throw new GradleException(
                 'Refusing to publish: no version given. Pass -PxomadVersion=<version> ' +
-                '(e.g. 8.7.1-xomad.1) or set XOMAD_VERSION.')
+                '(e.g. 9.0.3-xomad.1) or set XOMAD_VERSION.')
     }
     def remote = !nexusBaseUrl.toString().startsWith('file:')
     if (remote && (!nexusUsername || !nexusPassword)) {
