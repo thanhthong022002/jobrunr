@@ -103,8 +103,7 @@ public class JobBuilder {
      * @return the same builder instance which provides a fluent api
      */
     public JobBuilder scheduleIn(TemporalAmount duration) {
-        this.scheduleAt = Instant.now().plus(duration);
-        return this;
+        return withScheduleAt(Instant.now().plus(duration));
     }
 
     /**
@@ -137,6 +136,13 @@ public class JobBuilder {
      * @return the same builder instance which provides a fluent api
      */
     public JobBuilder scheduleAt(Temporal scheduleAt) {
+        return withScheduleAt(scheduleAt);
+    }
+
+    private JobBuilder withScheduleAt(Temporal scheduleAt) {
+        if (this.scheduleAt != null) {
+            throw new IllegalArgumentException("Only one of scheduleAt() or scheduleIn() can be used to schedule a job.");
+        }
         this.scheduleAt = scheduleAt;
         return this;
     }
@@ -174,31 +180,7 @@ public class JobBuilder {
         this.labels = labels;
         return this;
     }
-
-    /**
-     * Allows to provide the job details by means of Java 8 lambda.
-     *
-     * @param jobLambda the lambda which defines the job
-     * @return the same builder instance that can be given to the {@link JobScheduler#create(JobBuilder)} method
-     * @deprecated use {@link JobBuilder#withJobLambda(JobLambda)} instead
-     */
-    @Deprecated
-    public JobBuilder withDetails(JobLambda jobLambda) {
-        return this.withJobLambda(jobLambda);
-    }
-
-    /**
-     * Allows to provide the job details by means of Java 8 lambda. The IoC container will be used to resolve an actual instance of the requested service.
-     *
-     * @param jobLambda the lambda which defines the job
-     * @return the same builder instance that can be given to the {@link JobScheduler#create(JobBuilder)} method
-     * @deprecated use {@link JobBuilder#withJobLambda(IocJobLambda)} instead
-     */
-    @Deprecated
-    public <S> JobBuilder withDetails(IocJobLambda<S> jobLambda) {
-        return this.withJobLambda(jobLambda);
-    }
-
+    
     /**
      * Allows to provide the job details by means of Java 8 lambda.
      *
