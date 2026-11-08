@@ -19,11 +19,13 @@ Maven Central, so there is no way to hand a modified JobRunr to `xomad-internal-
 Add a row when you add a change. If a change touches a module that is not yet published, add it to
 the published-module list too — see [Publishing](#publishing).
 
-Tracked as **IT-64**.
+Tracked as **IT-64** (the fork and its publishing) and **IT-872** (the move to the 9.x baseline).
 
-## Baseline: upstream `master` (JobRunr 8.x)
+## Baseline: upstream `v9.0.3` (JobRunr 9.x)
 
-This branch sits on latest upstream `master` (currently `v8.7.1` + 1 commit). That is deliberate: the
+This branch sits on upstream's latest release, **`v9.0.3`** (2026-10-27), merged in by IT-872 on top of the
+earlier `v8.7.1` + 1 baseline. Upstream is *merged*, never rebased onto, so the fork's history stays
+intact. Tracking upstream's newest line is deliberate: the
 consumer is the backend's **`ai` module**, which runs **Spring Boot 4.0.5 / Java 25** and already
 depends on `org.jobrunr:jobrunr-spring-boot-4-starter` (`ai/pom.xml`).
 
@@ -33,12 +35,13 @@ this baseline. `api` is being upgraded separately; when it is, it consumes the s
 3) starter as `ai` and only needs adding to the published-module list below. Do **not** re-base this
 branch onto `v7.5.3` to serve `api` — that would drag `ai` back to 7.x.
 
-Note for whoever bumps `ai`: it currently pins `8.5.2`, so moving to a fork of `master` also moves it
-to `8.7.1`-era JobRunr. Skim upstream's 8.6 → 8.7 release notes rather than assuming it is a no-op.
+Note for whoever bumps a consumer from `8.x` to `9.0.3-xomad.1`: this is a **major** upgrade, not a
+version bump. Read upstream's [v9 migration guide](https://www.jobrunr.io/en/guides/migration/v9/) first;
+the [`9.0.3-xomad.1` release row](#releases) lists what this fork's consumer has to change.
 
 ## Toolchain
 
-Use **JDK 26**. The Gradle wrapper is 9.5.
+Use **JDK 26**. The Gradle wrapper is 9.8.0 (as of `v9.0.3`).
 
 ```bash
 export JAVA_HOME="$HOME/.jdks/jdk-26.0.1+8"
@@ -85,7 +88,7 @@ setup.
 ### Publish
 
 ```bash
-./gradlew -PxomadVersion=8.7.1-xomad.1 publishXomadArtifacts
+./gradlew -PxomadVersion=9.0.3-xomad.1 publishXomadArtifacts
 ```
 
 `publishXomadArtifacts` publishes the modules XOMAD consumes — currently `:core`
@@ -101,7 +104,7 @@ applies `maven-publish` already gets the `xomadNexus` repository, so nothing els
 release version cannot be replaced:
 
 ```bash
-./gradlew -PxomadVersion=8.7.1-xomad.1 -PxomadNexusBaseUrl=file:///tmp/fake-nexus publishXomadArtifacts
+./gradlew -PxomadVersion=9.0.3-xomad.1 -PxomadNexusBaseUrl=file:///tmp/fake-nexus publishXomadArtifacts
 ```
 
 ### Versioning — snapshots while developing, releases to pin
@@ -111,13 +114,13 @@ one-line version bump with no import or code changes.
 
 Since this fork keeps evolving, use the two channels for what they are:
 
-- **Iterating on a JobRunr change** → a snapshot, e.g. `-PxomadVersion=8.7.1-xomad-SNAPSHOT`. It
+- **Iterating on a JobRunr change** → a snapshot, e.g. `-PxomadVersion=9.0.3-xomad-SNAPSHOT`. It
   routes to `maven-snapshots` automatically (chosen from the version suffix), and snapshots **can**
   be republished, so you can push repeatedly under one version while the consumer keeps a fixed
   `<jobrunr.version>`. `ai/pom.xml` already enables snapshots on that repository. Consumers need
   `mvn -U` to pick up a re-published snapshot.
 - **Anything anyone else builds against** → a release, `<nearest upstream tag>-xomad.N`, e.g.
-  `8.7.1-xomad.1`. Bump `N` every time: `maven-releases` **rejects** overwriting an existing version,
+  `9.0.3-xomad.1`. Bump `N` every time: `maven-releases` **rejects** overwriting an existing version,
   which is the point — a pinned release never changes underneath a build.
 
 Don't leave a shared branch or a deploy pinned to a snapshot; cut an `-xomad.N` release once the
@@ -130,19 +133,19 @@ Publishing refuses to run without `-PxomadVersion`, on purpose — upstream's fa
 
 **A release is not done until it is tagged.** The Maven coordinates alone do not say *which commit*
 was published: this branch keeps moving, and `maven-releases` stores a jar, not a git ref. Without a
-tag, "what is actually in `8.7.1-xomad.1`?" is only answerable by guessing from timestamps.
+tag, "what is actually in `9.0.3-xomad.1`?" is only answerable by guessing from timestamps.
 
 So, immediately after a successful `publishXomadArtifacts` to the real Nexus:
 
 ```bash
-git tag -a v8.7.1-xomad.1 -m "XOMAD JobRunr 8.7.1-xomad.1" <commit-that-was-published>
-git push fork v8.7.1-xomad.1
+git tag -a v9.0.3-xomad.1 -m "XOMAD JobRunr 9.0.3-xomad.1" <commit-that-was-published>
+git push fork v9.0.3-xomad.1
 ```
 
 Rules:
 
-- **Tag name is `v` + the exact `-PxomadVersion` value** — `v8.7.1-xomad.1`. Matches upstream's own
-  `v8.7.1` style and never collides with it.
+- **Tag name is `v` + the exact `-PxomadVersion` value** — `v9.0.3-xomad.1`. Matches upstream's own
+  `v9.0.3` style and never collides with it.
 - **Annotated (`-a`), not lightweight**, so the tag carries who cut it and when.
 - **Tag the commit that was built**, which is not necessarily `HEAD` at the time you remember to tag —
   if you have already committed documentation on top, pass the published commit explicitly.
@@ -162,6 +165,7 @@ upstream baseline, say that.
 
 | Version | Tag | Commit | Upstream baseline | Published | Changes |
 |---|---|---|---|---|---|
+| `9.0.3-xomad.1` | `v9.0.3-xomad.1` | the tagged commit | `v9.0.3` | **pending** | **Baseline move only: upstream `v8.7.1` + 1 → `v9.0.3`** (IT-872). The XOMAD changes are carried unchanged: upstream 9.x did not touch `JobSteward`, `BackgroundJobServer`, `OnboardNewWorkTask` or the job filter API the instant-processing code hooks into, so the merge was conflict-free and needed no adjustment. Instant processing is still opt-in. **A consumer coming from 8.x must handle upstream's 9.0 changes**: `JobBuilder`/`RecurringJobBuilder.withDetails(..)` removed → `withJobLambda(..)`; `JobRunrConfiguration.useMicroMeter(..)` removed; job retention moved to a global setting — Spring `jobrunr.jobs.delete-succeeded-jobs-after` / `jobrunr.jobs.permanently-delete-deleted-jobs-after` (the `jobrunr.background-job-server.*` ones are deprecated); a new `v017` SQL migration runs on the next start (MySQL/MariaDB recreate the job-stats view with `SQL SECURITY INVOKER`; empty on Postgres). `:core` main code still targets Java 8 bytecode. See the [v9 migration guide](https://www.jobrunr.io/en/guides/migration/v9/). |
 | `8.7.1-xomad.1` | `v8.7.1-xomad.1` | `6cc6cccf` | `v8.7.1` + 6 | 2026-07-30 | **First XOMAD release of the 8.x fork.** Carries (1) instant / push-based job processing — `org.jobrunr.server.instant.*`, `JobSteward.onboardNewWorkNow()`, `BackgroundJobServer.onboardNewWorkNow()`, and the Postgres `LISTEN`/`NOTIFY` bridge, see [`INSTANT_JOB_PROCESSING.md`](INSTANT_JOB_PROCESSING.md); (2) the XOMAD Nexus publishing setup itself (`gradle/xomad-nexus-publishing.gradle`). Consumed by `xomad-internal-tools` `ai` (IT-67), wired up in IT-68. Verified in that consumer: 62 ms enqueue → execution against a 45 s poll interval. |
 
 ### Adding a row
@@ -180,7 +184,7 @@ Nexus and not in this table is invisible to the next person. Include:
 `ai/pom.xml` already declares both Nexus repositories, so this is the whole change:
 
 ```xml
-<jobrunr.version>8.7.1-xomad.1</jobrunr.version>
+<jobrunr.version>9.0.3-xomad.1</jobrunr.version>
 ```
 
 The `jobrunr-spring-boot-4-starter` POM depends on `org.jobrunr:jobrunr` at the *same* forked
