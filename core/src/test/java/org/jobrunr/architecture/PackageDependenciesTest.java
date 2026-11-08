@@ -99,7 +99,15 @@ class PackageDependenciesTest {
             .that().resideInAPackage("org.jobrunr.server..")
             .and().resideOutsideOfPackage("org.jobrunr.server.jmx..")
             .and().resideOutsideOfPackage("org.jobrunr.server.metrics..")
+            .and().resideOutsideOfPackage("org.jobrunr.server.instant.postgres..") // XOMAD fork: optional integration, own rule below
             .should().onlyDependOnClassesThat().resideInAnyPackage("org.jobrunr..", "org.slf4j..", "java..");
+
+    // XOMAD fork: the Postgres LISTEN/NOTIFY bridge for instant job processing is an optional integration
+    // (org.postgresql is compileOnly), like jmx / metrics above - so it gets its own, equally narrow rule.
+    @ArchTest
+    ArchRule jobRunrServerInstantPostgresClassesDependenciesTest = classes()
+            .that().resideInAPackage("org.jobrunr.server.instant.postgres..")
+            .should().onlyDependOnClassesThat().resideInAnyPackage("org.jobrunr..", "org.slf4j..", "java..", "javax.sql..", "org.postgresql..");
 
     @ArchTest
     ArchRule jobRunrServerClassesShouldNotDependOnJavaAwtDependenciesTest = noClasses()
